@@ -4,11 +4,8 @@ use byondapi::{
 };
 use num_traits::ToPrimitive;
 
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::Mutex;
 use rayon::prelude::*;
 
 #[derive(Clone)]
@@ -70,7 +67,7 @@ impl LightingObject {
         }
     }
 
-    pub fn from_byond(mut self, bval: ByondValue) -> Self {
+    pub fn from_byond(&mut self, bval: ByondValue) {
         let my_turf = bval.read_var("myturf").unwrap();
         let corners_var = my_turf.read_var("corners").unwrap();
 
@@ -84,69 +81,67 @@ impl LightingObject {
             let corners: ByondValueList = my_turf.read_var("corners").unwrap().try_into().unwrap();
         
             if !corners[2].is_null() {
-                cr = Some(corners[2].clone());
+                cr = Some(corners[2].to_owned());
             }
             
             if !corners[1].is_null() {
-                cg = Some(corners[1].clone());
+                cg = Some(corners[1].to_owned());
             }
         
             if !corners[3].is_null() {
-                cb = Some(corners[3].clone());
+                cb = Some(corners[3].to_owned());
             }
         
             if !corners[0].is_null() {
-                ca = Some(corners[0].clone());
+                ca = Some(corners[0].to_owned());
             }
         }
 
         if cr.is_some() {
             let cro = cr.unwrap();
-            self.ccr = cro.read_var("cache_mx").unwrap().get_number().unwrap();
-            self.crcr = cro.read_var("cache_r").unwrap().get_number().unwrap();
-            self.crcg = cro.read_var("cache_g").unwrap().get_number().unwrap();
-            self.crcb = cro.read_var("cache_b").unwrap().get_number().unwrap();
+            self.ccr = cro.read_var("cache_mx").unwrap().get_number().unwrap().to_owned();
+            self.crcr = cro.read_var("cache_r").unwrap().get_number().unwrap().to_owned();
+            self.crcg = cro.read_var("cache_g").unwrap().get_number().unwrap().to_owned();
+            self.crcb = cro.read_var("cache_b").unwrap().get_number().unwrap().to_owned();
         }
 
         if cg.is_some() {
             let cgo = cg.unwrap();
-            self.ccg = cgo.read_var("cache_mx").unwrap().get_number().unwrap();
-            self.cgcr = cgo.read_var("cache_r").unwrap().get_number().unwrap();
-            self.cgcg = cgo.read_var("cache_g").unwrap().get_number().unwrap();
-            self.cgcb = cgo.read_var("cache_b").unwrap().get_number().unwrap();
+            self.ccg = cgo.read_var("cache_mx").unwrap().get_number().unwrap().to_owned();
+            self.cgcr = cgo.read_var("cache_r").unwrap().get_number().unwrap().to_owned();
+            self.cgcg = cgo.read_var("cache_g").unwrap().get_number().unwrap().to_owned();
+            self.cgcb = cgo.read_var("cache_b").unwrap().get_number().unwrap().to_owned();
         }
 
         if cb.is_some() {
             let cbo = cb.unwrap();
-            self.ccb = cbo.read_var("cache_mx").unwrap().get_number().unwrap();
-            self.cbcr = cbo.read_var("cache_r").unwrap().get_number().unwrap();
-            self.cbcg = cbo.read_var("cache_g").unwrap().get_number().unwrap();
-            self.cbcb = cbo.read_var("cache_b").unwrap().get_number().unwrap();
+            self.ccb = cbo.read_var("cache_mx").unwrap().get_number().unwrap().to_owned();
+            self.cbcr = cbo.read_var("cache_r").unwrap().get_number().unwrap().to_owned();
+            self.cbcg = cbo.read_var("cache_g").unwrap().get_number().unwrap().to_owned();
+            self.cbcb = cbo.read_var("cache_b").unwrap().get_number().unwrap().to_owned();
         }
 
         if ca.is_some() {
             let cao = ca.unwrap();
-            self.cca = cao.read_var("cache_mx").unwrap().get_number().unwrap();
-            self.cacr = cao.read_var("cache_r").unwrap().get_number().unwrap();
-            self.cacg = cao.read_var("cache_g").unwrap().get_number().unwrap();
-            self.cacb = cao.read_var("cache_b").unwrap().get_number().unwrap();
+            self.cca = cao.read_var("cache_mx").unwrap().get_number().unwrap().to_owned();
+            self.cacr = cao.read_var("cache_r").unwrap().get_number().unwrap().to_owned();
+            self.cacg = cao.read_var("cache_g").unwrap().get_number().unwrap().to_owned();
+            self.cacb = cao.read_var("cache_b").unwrap().get_number().unwrap().to_owned();
         }
-
-        self
     }
 
-    pub fn do_work(mut self) -> Self {
+    pub fn do_work(&mut self) {
         // Handle the max
         let rg_max = self.ccr.max(self.ccg);
         let ba_max = self.ccb.max(self.cca);
 
         let lum_max = rg_max.max(ba_max);
 
-        let is_luminous = lum_max > 0f32;
+        self.is_luminous = lum_max > 0f32;
 
         if self.crcr + self.crcg + self.crcb + self.cgcr + self.cgcg + self.cgcb + self.cbcr + self.cbcg + self.cbcb + self.cacr + self.cacg + self.cacb == 12f32 {
             self.icon_state = Some("transparent".to_string());
-        } else if !is_luminous {
+        } else if !self.is_luminous {
             self.icon_state = Some("dark".to_string());
         } else {
             self.icon_state = None;
@@ -160,8 +155,6 @@ impl LightingObject {
         }
 
         self.worked = true;
-
-        self
     }
 
     pub fn write(&self, mut val: ByondValue) {
@@ -175,7 +168,9 @@ impl LightingObject {
                 let mut byond_colour_list: ByondValueList = ByondValue::new_list().unwrap().try_into().unwrap();
                 for entry in v.into_iter() {
                     let _ = byond_colour_list.push(&ByondValue::new_num(entry));
-                }
+                };
+                let byond_list_val: ByondValue = byond_colour_list.try_into().unwrap();
+                val.write_var("color", &byond_list_val).unwrap()
             }
             None => val.write_var("color", &ByondValue::new()).unwrap()
         }
@@ -218,19 +213,11 @@ pub unsafe extern "C" fn dowork_obj(
     _argv: *mut ByondValue,
 ) -> ByondValue {
 
-    RUST_OBJECT_QUEUE.with(|cell1| -> _ {
-        let cell3 = cell1.borrow_mut().to_owned();
-        let archolder: Arc<Mutex<HashMap<u32, LightingObject>>> = Arc::new(Mutex::from(cell3));
-        let archolder_closure = Arc::clone(&archolder);
 
-        // First do the work
-        RUST_OBJECT_QUEUE.with(|cell2| -> _ {
-            cell2.borrow_mut().par_iter_mut().for_each(|o| -> _ {
-                let cell_lock = archolder_closure.lock().unwrap();
-                let worked_obj = o.1.to_owned().do_work().clone();
-                let _ = cell_lock.get(o.0).replace(&worked_obj);
-                drop(cell_lock)
-            });
+    // First do the work
+    RUST_OBJECT_QUEUE.with(|cell2| -> _ {
+        cell2.borrow_mut().iter_mut().for_each(|o| -> _ {
+            o.1.do_work()
         });
     });
 
@@ -255,7 +242,7 @@ pub unsafe extern "C" fn writelock_obj(
                     // Grab the ref
                     let object_ref = rust_object.0;
                     // Grab the BYOND object - This many overloads is 100% not needed
-                    let byond_object = byond_cell.to_owned().borrow_mut().get(object_ref).borrow().unwrap().clone().to_owned();
+                    let byond_object = byond_cell.borrow_mut().get(object_ref).unwrap().to_owned();
                     // Write from rust to BYOND object
                     rust_object.1.write(byond_object);
                     // Mark us as processed
@@ -280,14 +267,15 @@ pub unsafe extern "C" fn queue_object(
     argv: *mut ByondValue,
 ) -> ByondValue {
     let args = parse_args(argc, argv);
-    let the_obj = args[0].clone();
+    let the_obj = args[0].to_owned();
 
     let object_ref = the_obj.get_ref().unwrap();
 
     
     RUST_OBJECT_QUEUE.with(|cell| -> _ {
-        let lo: LightingObject = LightingObject::new();
-        cell.borrow_mut().insert(object_ref, lo.from_byond(the_obj.clone()));
+        let mut lo: LightingObject = LightingObject::new();
+        lo.from_byond(the_obj.to_owned());
+        cell.borrow_mut().insert(object_ref, lo);
     });
 
     BYOND_OBJECT_QUEUE.with(|cell| -> _ {
@@ -304,7 +292,7 @@ pub unsafe extern "C" fn dequeue_object(
     argv: *mut ByondValue,
 ) -> ByondValue {
     let args = parse_args(argc, argv);
-    let the_obj = args[0].clone();
+    let the_obj = args[0].to_owned();
 
     BYOND_OBJECT_QUEUE.with(|cell| -> _ {
         cell.borrow_mut().remove(&the_obj.get_ref().unwrap());

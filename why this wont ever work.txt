@@ -1,0 +1,6 @@
+Basically, it queues the lighting object from BYOND in that moment the moment its added to the SSlighting queue.
+
+When an object is queued, its corner values are added in that moment, and if its already queued it wont be queded again in that update.
+As you can imagine, this doesnt work if an object is impacted by multiple sources.
+
+I have no idea what I am doing.
