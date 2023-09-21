@@ -4,6 +4,7 @@ use byondapi::{
 };
 use num_traits::ToPrimitive;
 
+use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -163,17 +164,17 @@ impl LightingObject {
         self
     }
 
-    pub fn write(self, val: &mut ByondValue) {
-        match self.icon_state {
+    pub fn write(&self, mut val: ByondValue) {
+        match self.to_owned().icon_state {
             Some(v) => val.write_var("icon_state", &ByondValue::new_str(v).unwrap()).unwrap(),
             None => val.write_var("icon_state", &ByondValue::new()).unwrap()
         }
 
-        match self.colour_list {
+        match self.to_owned().colour_list {
             Some(v) => {
                 let mut byond_colour_list: ByondValueList = ByondValue::new_list().unwrap().try_into().unwrap();
                 for entry in v.into_iter() {
-                    byond_colour_list.push(&ByondValue::new_num(entry));
+                    let _ = byond_colour_list.push(&ByondValue::new_num(entry));
                 }
             }
             None => val.write_var("color", &ByondValue::new()).unwrap()
@@ -217,16 +218,19 @@ pub unsafe extern "C" fn dowork_obj(
     _argv: *mut ByondValue,
 ) -> ByondValue {
 
-    //let mut processed_refs: Vec<u32> = Vec::new();
-    let processed_lock = Arc::new(Mutex::new(Vec::new()));
+    RUST_OBJECT_QUEUE.with(|cell1| -> _ {
+        let cell3 = cell1.borrow_mut().to_owned();
+        let archolder: Arc<Mutex<HashMap<u32, LightingObject>>> = Arc::new(Mutex::from(cell3));
+        let archolder_closure = Arc::clone(&archolder);
 
-    // First do the work
-    RUST_OBJECT_QUEUE.with(|cell| -> _ {
-        cell.borrow_mut().par_iter_mut().for_each(|o| -> _ {
-            let worked_obj = o.1.do_work();
-            let mut lock = processed_lock.lock().unwrap();
-            lock.push(worked_obj);
-            drop(lock);
+        // First do the work
+        RUST_OBJECT_QUEUE.with(|cell2| -> _ {
+            cell2.borrow_mut().par_iter_mut().for_each(|o| -> _ {
+                let cell_lock = archolder_closure.lock().unwrap();
+                let worked_obj = o.1.to_owned().do_work().clone();
+                let _ = cell_lock.get(o.0).replace(&worked_obj);
+                drop(cell_lock)
+            });
         });
     });
 
@@ -236,8 +240,8 @@ pub unsafe extern "C" fn dowork_obj(
 
 #[no_mangle]
 pub unsafe extern "C" fn writelock_obj(
-    argc: byondapi_sys::u4c,
-    argv: *mut ByondValue,
+    _argc: byondapi_sys::u4c,
+    _argv: *mut ByondValue,
 ) -> ByondValue {
 
     // First do the work
@@ -250,10 +254,10 @@ pub unsafe extern "C" fn writelock_obj(
                 if rust_object.1.worked {
                     // Grab the ref
                     let object_ref = rust_object.0;
-                    // Grab the BYOND object
-                    let byond_object = byond_cell.borrow().get(object_ref).unwrap();
+                    // Grab the BYOND object - This many overloads is 100% not needed
+                    let byond_object = byond_cell.to_owned().borrow_mut().get(object_ref).borrow().unwrap().clone().to_owned();
                     // Write from rust to BYOND object
-                    //rust_object.1.write(byond_object);
+                    rust_object.1.write(byond_object);
                     // Mark us as processed
                     processed_objects.push(object_ref.to_owned());
                 }
